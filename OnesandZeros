@@ -1,0 +1,77 @@
+      .text
+			.global _start
+_start:		LDR R4, =TEST_NUM   //load the test number into R4.
+			MOV R5, #0			//resets R5 to 0.
+            MOV R6, #0			//resets R6 to 0.
+            MOV R7, #0			//resets R7 to 0.
+            
+LOOP:		
+			LDR 	R1, [R4]		//load R1 with the contents of R4.
+            LDR 	R4, [R4,#4]	    //Move R4 to the next address (updating the test number)
+            CMP 	R1, #0			//If R1 is 0 that means it has been shifted to the end and the program is done.
+            BEQ 	END
+            
+            BL 		ONES			//branch off into the ONES subroutine
+            CMP 	R5, R0			//If the current streak is longer than what already is in R5, update it.
+            MOVLT 	R5, R0
+            
+            BL 		ZEROS			//branch off into the ZEROS subroutine
+            CMP 	R6, R0			//Same thing as with R5
+            MOVLT 	R6, R0
+            
+            BL 		ALTERNATE		//branch off into the ALTERNATE subroutine
+            CMP 	R7, R10			//Same thing just the streak is being recorded in R10.
+            MOVLT 	R7, R10
+            
+            B 		LOOP
+END: 		B		END
+
+ONES:		MOV		R0, #0			//Give R0 the 0 value
+			MOV		R9, R1			//Move R1 to R9 so that it is easier to keep things separate between the subroutines.
+
+ONES_LOOP:	LSR		R2, R9, #1		//Same code as in Part 3, shift it right and and it with the not shifted one to check for consecutive ones.
+			AND		R9, R9, R2
+            ADD		R0, #1 
+            CMP		R9, #0
+            BEQ		ONES_END		//Once it goes through the entire word, end the ONES subroutine.
+            B		ONES_LOOP		//If not, go through the loop again
+         
+ONES_END:	MOV		PC, LR			//Send it back to the main function
+
+ZEROS:		LDR 	R2, = XOR_NUM	//Load the first XOR_NUM into R2
+			LDR 	R2, [R2]		
+            EOR 	R1, R2, R1		//Exclusive or the TEST_NUM and the XOR_NUM to flip all the bits
+            MOV		R8, LR			//Store the link register into R8 because its going to change  when we call BL again.
+            BL		ONES 			//Can run ONES because all the bits have been flipped.
+            MOV 	LR, R8			//Reset the LR to what it is supposed to be in this subroutine.
+            B		ZEROS_END		
+
+ZEROS_END: 	MOV 	PC, LR			//Update the Program Counter and send it back to the LOOP (because LR is tied to BL there.) 
+
+ALTERNATE:	MOV		R0, #0
+			MOV		R10, R1
+
+LOOP_ALT:   ASR		R2, R10, #1		//Arithmetic shift right and store it into R2 
+			EOR		R10, R10, R2	//X-OR will create ones when there is an alternating set of ones and zeros.
+            ADD		R0, #1			//Add 1 to the R0 register
+            CMP     R10, #0
+          	BEQ		END_ALT
+            B		LOOP_ALT
+
+END_ALT: 	MOV 	PC, LR
+           
+TEST_NUM:	.word 0x78efac54
+			     .word 0x87654321
+            .word 0x89898989
+            .word 0xacebdf12
+            .word 0x00000000
+            .word 0x45ea3219
+            .word 0x55567775
+            .word 0xeeeeaaaa
+            .word 0xffffffff
+            .word 0x89898989
+
+XOR_NUM:	.word 0xffffffff	//This is all ones to compare with the test numbers
+			.word 0xaaaaaaaa	//This creates an alternating 101010 pattern 
+	
+	
