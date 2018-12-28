@@ -1,0 +1,40 @@
+			.text
+      .global _start
+            
+_start:
+START:		
+			LDR 	R4, =TEST_NUM	 //loading the TEST_NUM list into R4
+            LDR		R4, [R4]		 
+            
+RESET:      MOV 	R0, #0			 //this counts the number of swaps performed in a single run through of the list.
+            MOV		R5, #1			 //this counts until we reach the end of the list
+            BL 		SORT			 //start sorting through the list.
+            CMP		R0, #1			 //compare the swap check with 1. If equal
+            BEQ		RESET			 //R6 stores the address of R4 so that we can point to the first element in the RESET subroutine.
+END:		B 		END 			 
+            
+SORT:		LDR		R3,	=TEST_NUM	 //we also want to load the TEST_NUM list into R3
+			ADD		R3, #4			 //we need it to point at the second number, because the first just describes length.
+LOOP:       LDR		R1, [R3]		 //load the first TEST_NUM into R1
+			LDR		R2, [R3, #4]	 //load the second TEST_NUM into R2 
+            ADD		R3, #4			 //increment so that on the next loop the next values will be added
+            CMP 	R1, R2			 //compare R1 and R2 to see if the swap is necessary
+            PUSH	{LR}			 //push LR into temporary memory (the stack) to keep track of where we were. 
+            BLGT 	SWAP			 //branch to the SWAP subroutine if R1 > R2 (out of order) 
+            POP		{LR}			 //pop LR from the stack (Note that we need the stack LR because we already have an LR from the RESET routine)
+            ADD		R5, #1			 //increment the list counter by one
+            CMP		R5, R4			 //check if we've reached the end of the list
+            MOVEQ	PC, LR		     //If the two values are equal, we've reached the end of the list, and we need to go back to RESET.
+            B		LOOP			 //otherwise, loop back to the beginning and keep going through the list.
+
+
+SWAP:		STR		R1, [R3]	     //store R1 into R3 (first part of the swap)
+            SUB		R3, #4			 //we're at the second position of R3 so we have to move back one position
+            STR		R2, [R3]		 //store R2 into the previous R3 position (completing the swap)
+            MOV		R0, #1			 //moving 1 to R0 to confirm that a swap has been made
+            MOV		PC, LR			 //send it back to our LOOP 
+            
+TEST_NUM: 	.word	10, 1400, 45, 23, 5, 3, 8, 17, 4, 20, 33
+
+			.end
+				
