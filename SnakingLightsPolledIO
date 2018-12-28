@@ -1,0 +1,82 @@
+			.text
+			.global _start
+_start:		LDR		R8, =0xFF200000		//loading the address for the LED into R8
+			LDR 	R9, =0xFF200050		//loading the address for the KEY into R9
+            MOV 	R2, #0				//binary 0 or 1 value to say shift left or shift right
+            MOV 	R3, #0b1			//need just one bit moving across the LEDs.
+            LDR 	R1, =0xFFFEC600		//loading the address for the CLOCK into R1
+            LDR 	R7, =40000000		
+            STR 	R7, [R1]			//Store the amount of time we need into the CLOCK
+            MOV 	R7, #0b011			//Setting the I (interrupt), A (auto-reload), E (start-stop)
+            STR 	R7, [R1, #8]
+            
+DISPLAY:	STR 	R3, [R8]			//Store the 1 bit that we need moving across the LEDs into the LED address.
+			CMP 	R2, #0				//if R2 is 0, shift left
+            BLEQ	SHIFTL				
+            CMP 	R2, #1				//if R2 is 1, shift right
+            BLEQ	SHIFTR
+            
+            LDR		R12, [R9]			//if the key is being pressed, execute KEY subroutine
+            
+            CMP		R12, #1 			
+            BLEQ	KEY
+            
+            B 		DISPLAY				//keep looping this DISPLAY subroutine 
+            
+DELAY:		
+			LDR 	R0, [R1,#0xC]		//This reads the timers interrupt status
+			CMP 	R0, #0				//Are you done counting or not? If not done, F = 0, keep delaying until you're done
+            BEQ 	DELAY				//Wait for the timer to run out (which you'll know when R0 = 0)
+            STR 	R0, [R1,#0xC]		//Reset the timer interrupt status bit
+            MOV 	PC,LR				//Go back to where we were in the shift subroutine
+            
+            
+SHIFTL:           
+            PUSH 	{LR}				//push the other LR onto the stack
+            BL 		DELAY				//branch to the DELAY subroutine
+            POP 	{LR}				//pop this LR back on
+            LSL 	R3,#1				//perform the left shift
+			CMP 	R3, #0b1000000000	//check if the LED has reached the end yet
+            MOVEQ 	R2, #1				//if it has, set R2 to 1 to trigger the shift right
+            ADD 	LR, #8				//you can go straight to SHIFTR if you've reached the end.
+            MOV 	PC,LR
+            
+            
+SHIFTR: 	
+			PUSH 	{LR}				//push LR onto the stack
+            BL 		DELAY				//link to the DELAY branch
+            POP 	{LR}				//pop LR off the stack
+			LSR 	R3,#1				//shift the LEDs to the right by 1
+			CMP 	R3, #0b1			//check if the LED has reached the far right
+            MOVEQ 	R2, #0				//if it has, set R2 to 0 to trigger the shift left.
+            MOV 	PC,LR				//go back to where you were in the display subroutine
+            	
+KEY: 		LDR 	R12, [R9]			//Move the value at the key address into R12		
+			CMP 	R12, #1				//If the key is being pressed (1), hold it on this KEY function
+			BEQ 	KEY
+			PUSH 	{LR}
+			BL 		KEY2				//If not, branch off to KEY2 
+			POP 	{LR}
+			MOV 	PC, LR
+			
+
+KEY2:		LDR 	R12, [R9]			//Hold as long as its 0.
+			CMP 	R12, #0
+			BEQ 	KEY2
+			PUSH 	{LR}
+			BL 		KEY3				//If not 0, branch off to KEY3
+			POP 	{LR}
+			MOV 	PC, LR
+			
+			
+KEY3:		LDR 	R12, [R9]			//Hold if 1 and if not go back to the DISPLAY main.
+			CMP 	R12, #1				//We have KEY3 because otherwise it would get caught in a loop.
+			BEQ 	KEY3
+			MOV 	PC, LR
+            
+//Note: No end subroutine because we want it to endlessly loop for as long as we need it on the board.
+			
+			            
+            
+	
+	
