@@ -1,0 +1,63 @@
+	.include "address_map_arm.s"
+        
+/*
+ *	This program demonstrates the use of interrupts using the KEY and timer ports. It 
+ *		1. Displays a sweeping red light on LEDR, which moves left and right.
+ *		2. Stops/starts the sweeping motion if KEY3 is pressed.
+ *	Both the timer and the KEYS are handled via interrupts.
+*/
+
+			.text
+        	.global _start
+        
+_start:		
+			MOV		R0, #0b10010			//Code for IRQ given in class, assigning it to R0
+            MSR		CPSR, R0				//Using MSR, can move R0 into the Current Status Program Register to switch to IRQ mode.
+            LDR		SP, =0xFFFFFFFF			//Initialize the first address of the stack pointer. Each mode has its own stack pointer.
+            MOV		R0, #0b10011			//Using the supervisor code and assigning that to R0
+            MSR		CPSR, R0				//Using MSR to move R0 into the CPSR to switch to supervisor mode.
+            LDR		SP, =0x5FFFFFFF			//Initialize the first address of the stack pointer for the supervisor mode.
+            
+            //Note, the stack  pointer is arbitrary so we can choose any value as long as it doesn't overlap with anything else.
+            BL		CONFIG_GIC				//Branch link to subroutine to configure the ARM generic interrupt controller
+			BL		CONFIG_PRIV_TIMER		//Configure the MPCore private timer
+			BL		CONFIG_KEYS				//Configure the pushbutton KEYs
+			
+			// enable ARM processor interrupts
+            
+            MSR		CPSR, #0b00010011		//Configure the CPU interrupt by setting the 7th bit (the interrupt bit) to 0, which allows for interrupts.
+            LDR		R6, =0xFF200000 		// red LED base address
+
+MAIN:		
+			LDR		R4, LEDR_PATTERN		// LEDR pattern; modified by timer ISR
+			STR 	R4, [R6] 				// write to red LEDs
+			B 		MAIN					//Looping through the main function until an interrupt status is achieved.
+
+//When you hit an interrupt, get out of this mode and move into another mode. Exception is raised which sends you to the exception vector table. 
+
+/* Configure the MPCore private timer to create interrupts every 1/10 second */
+CONFIG_PRIV_TIMER:
+			LDR		R0, =0xFFFEC600 		// Timer base address
+            LDR		R1, =20000000			// Number of cycles per second
+			STR		R1, [R0]				//Store the number of cycles per second into the control register for the timer.
+            LDR		R2, =0b111				//Setting E = 1 to start, setting A = 1 to auto-reload, setting I = 1 to enable interrupts for the timer.r
+            //Different conventions to enable interrupts for the timer and the CPSR.
+            STR		R2, [R0, #8] 			//Write that to the clock control register (with an 8 bit offset)
+			MOV 	PC, LR 					// return
+            //Note: don't need to configure F because the interrupt status is being controlled by the supervisor mode.
+
+/* Configure the KEYS to generate an interrupt */
+CONFIG_KEYS:
+			LDR 	R0, =0xFF200050 		// KEYs base address
+            LDR		R3, =0b1000				//Called an interrupt mask register, sets the interrupt status to on for only KEY3, the key we need.
+			LDR		R3, [R0, #8]			//Moves the interrupt status we need to the correct address for the KEY.
+			MOV 	PC, LR 					// return
+
+			.global	LEDR_DIRECTION
+            
+LEDR_DIRECTION:
+			.word 	0							// 0 means left, 1 means right
+
+			.global	LEDR_PATTERN
+LEDR_PATTERN:
+			.word 	0x1
